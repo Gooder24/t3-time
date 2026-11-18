@@ -167,7 +167,7 @@ def load_sources(args):
                   "them, please open an issue" % label, file=sys.stderr)
         sources.append({"label": label, "kind": kind, "data": data})
     if not sources:
-        raise Problem("no database could be read: " + "; ".join("%s: %s" % (s["label"], s["reason"]) for s in skipped))
+        raise Problem("no database could be read")
     return sources, skipped
 
 
