@@ -27,10 +27,24 @@ def iso(d):
     return d.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + "%03dZ" % (d.microsecond // 1000)
 
 
+def replace_demo(path):
+    """Delete an earlier demo database, and refuse anything else (such as a real T3 database)."""
+    try:
+        db = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
+        tables = {r[0] for r in db.execute("select name from sqlite_master where type = 'table'")}
+        db.close()
+    except sqlite3.Error:
+        tables = None
+    if tables != {"projection_projects", "orchestration_v2_projection_threads",
+                  "orchestration_v2_projection_messages", "orchestration_v2_projection_runs"}:
+        sys.exit("demo.py: %s exists and is not a demo database; not touching it" % path)
+    os.remove(path)
+
+
 class FakeT3:
     def __init__(self, path):
         if os.path.exists(path):
-            os.remove(path)  # always a fresh database
+            replace_demo(path)
         self.db = sqlite3.connect(path)
         self.db.executescript(SCHEMA_SQL)
         self.n = 0
