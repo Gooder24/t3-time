@@ -4,6 +4,7 @@
     python3 t3time.py --no-local --db demo=demo.sqlite --html demo.html --tz UTC
 """
 import json
+import os
 import random
 import sqlite3
 import sys
@@ -28,6 +29,8 @@ def iso(d):
 
 class FakeT3:
     def __init__(self, path):
+        if os.path.exists(path):
+            os.remove(path)  # always a fresh database
         self.db = sqlite3.connect(path)
         self.db.executescript(SCHEMA_SQL)
         self.n = 0
