@@ -160,6 +160,7 @@ def load_sources(args):
             data = fut.result()
         except Problem as e:
             skipped.append({"label": label, "reason": str(e)})
+            print("t3-time: skipped %s: %s" % (label, e), file=sys.stderr)
             continue
         if data.get("user_rows") and not data.get("own"):
             print("t3-time: %s has user messages but none matched your own; T3 may have changed how it stores "
@@ -368,7 +369,7 @@ def cut(s, n):
     return s if len(s) <= n else s[:n - 1] + "…"
 
 
-def render_text(r, skipped, top=10):
+def render_text(r, top=10):
     t = r["totals"]
     out = []
     if not t["messages"]:
@@ -377,8 +378,6 @@ def render_text(r, skipped, top=10):
     days = r["days"]
     out.append("t3-time · %s · %s – %s (%d days) · %s" % (
         ", ".join(r["sources"]), days[0]["date"], days[-1]["date"], t["days"], r["timezone"]))
-    for s in skipped:
-        out.append("  skipped %s: %s" % (s["label"], s["reason"]))
     out.append("")
     ratio = " (%.1f× your time)" % t["agent_ratio"] if t["agent_ratio"] else ""
     lines = [
@@ -513,12 +512,13 @@ def render_html(r, top=15):
     open_list = ", ".join(e(cut(th["title"], 50)) for th in r["open"][:3])
     busiest = max(days, key=lambda d: d["your_min"])
     ratio = (", %.1f× your time" % t["agent_ratio"]) if t["agent_ratio"] else ""
+    skipped = "".join(" · skipped %s (%s)" % (e(s["label"]), e(s["reason"])) for s in r.get("skipped", []))
     not_yours = " (%s here)" % fh(t["agent_hours_not_yours"]) if t["agent_hours_not_yours"] >= 0.05 else ""
     night = sum(n for h, n in enumerate(r["hours"]) if h >= 23 or h < 5)
 
     body = f"""
 <h1>Your time in T3 Code</h1>
-<p class="sub">{e(", ".join(r["sources"]))} · {short_day(days[0]["date"], True)} – {short_day(days[-1]["date"], True)}, {t["days"]} days · {e(r["timezone"])}. Time comes from when you sent messages, not from when a window was open.</p>
+<p class="sub">{e(", ".join(r["sources"]))} · {short_day(days[0]["date"], True)} – {short_day(days[-1]["date"], True)}, {t["days"]} days · {e(r["timezone"])}{skipped}. Time comes from when you sent messages, not from when a window was open.</p>
 <!-- avoid-ai-design-ignore: L4 (measured numbers in one sentence, not a stat strip) -->
 <p class="lead">You spent about <b>{fh(t["your_hours"])}</b> in T3 over {t["active_days"]} active days, {t["hours_per_active_day"]:.1f} h a day, while agents ran {fh(t["agent_hours"])}{ratio}. <b>{pct(t["switch_share"])}</b> of your next messages in a session went to a different thread than the one before.</p>
 <ul class="facts">
@@ -590,13 +590,16 @@ def main(argv=None):
         result = analyze(sources, args.idle, args.since, clock)
         result["skipped"] = skipped
         if args.html:
-            with open(args.html, "w", encoding="utf-8") as f:
-                f.write(render_html(result))
+            try:
+                with open(args.html, "w", encoding="utf-8") as f:
+                    f.write(render_html(result))
+            except OSError as e:
+                raise Problem("cannot write %s: %s" % (args.html, e.strerror or e))
         if args.json:
             json.dump(result, sys.stdout, ensure_ascii=False, indent=1)
             print()
         else:
-            print(render_text(result, skipped))
+            print(render_text(result))
             if args.html:
                 print("\nWrote " + args.html)
     except Problem as e:

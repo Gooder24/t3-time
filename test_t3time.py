@@ -47,7 +47,7 @@ class OwnMessages(Base):
         m(2, source="web", text="Continue where you left off.")     # your click
         m(3, source="server", text="Continue where you left off.")  # T3 after a usage-limit reset
         m(4, idleCompaction="onReturn")                             # automatic /compact
-        m(5, notification="Resumed thread", text="")
+        m(5, notification="Resumed thread", text="Resumed thread")
         m(6, created_by="agent", source="mcp")                      # delegated thread
         m(7, text="  ")                                             # empty
         m(8, text="", attachments=[{"name": "x.png"}])              # just an image: yours
@@ -178,6 +178,17 @@ class Schema(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertNotIn("Traceback", r.stderr)
         self.assertIn("no T3 database at /nope.sqlite", r.stderr)
+
+    def test_unwritable_html_is_one_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            db = os.path.join(d, "demo.sqlite")
+            make_demo(db)
+            r = subprocess.run([sys.executable, os.path.join(HERE, "t3time.py"), "--no-local", "--db", db,
+                                "--db", "/nope.sqlite", "--html", "/nonexistent/x.html"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("skipped /nope.sqlite", r.stderr)
+        self.assertIn("cannot write /nonexistent/x.html", r.stderr)
 
 
 class EndToEnd(unittest.TestCase):
